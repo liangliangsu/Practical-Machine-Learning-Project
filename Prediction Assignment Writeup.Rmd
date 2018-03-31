@@ -1,0 +1,103 @@
+---
+title: "Practical Machine Learning Project"
+author: "Liangliang Su"
+date: "March 31, 2018"
+output: html_document
+---
+## Introduction
+### Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+### Goal
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with.   
+
+## Load, explore and clean the data
+```{r,echo = TRUE,cache = TRUE}
+#library(lattice)
+#library(ggplot2)
+library(caret)
+training<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+testing<-read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+print(dim(training))
+print(dim(testing))
+#print(str(training))
+#print(str(testing))
+```
+Some columns have missing values for most of rows. I will remove these kind of column. The first five columns contain people's name and time information which is useless for prediction model. I will also remove these columns.
+```{r,echo = TRUE}
+index<-which(colSums(is.na(training)|training=="")>0.5*dim(training)[1])
+trainclean<-training[,-index]
+trainclean<-trainclean[,-c(1:5)]
+index<-colnames(trainclean)
+colnames(testing)[colnames(testing)=="problem_id"] <- "classe"
+testing<-testing[,index]
+#print(index)
+#print(colnames(testing))
+```
+After cleaning the training data and test data, I will split the training data into training part and test part.
+```{r,echo = TRUE,cache = TRUE}
+set.seed(1111111)
+inTrain<- createDataPartition(trainclean$classe, p=0.7, list=FALSE)
+train<-trainclean[inTrain,]
+test<-trainclean[-inTrain,]
+print(dim(train))
+print(dim(test))
+```
+
+## Prediction model
+In this part, I will use 3 prediction models: decision trees, random forest ,gradient boosting method. I will use the cross-validation to limit overfitting. The train set will be splited into 5 folds.  
+
+### Decision Trees
+```{r,echo = TRUE,cache = TRUE}
+set.seed(54321)
+control<-trainControl(method = "cv", number = 5)
+DT<-train(classe ~ ., data = train, method = "rpart", trControl = control)
+print(DT)
+```
+```{r,echo = TRUE,cache = TRUE}
+plot(DT$finalModel,uniform=TRUE,main = 'Decision Tree')
+text(DT$finalModel,use.n=TRUE,all=TRUE,cex=0.7)
+```
+
+fancyRpartPlot doesn't work for unknown reason. I use plot to represent the tree structure instead.
+```{r,echo = TRUE}
+library(caret)
+pred<- predict(DT,newdata=test)
+confusionMatrix(pred, test$classe)
+```
+The accuracy of Decision Trees is about 49% which is a real poor performance.
+
+### Random Forest
+```{r,echo = TRUE,cache = TRUE}
+RF<- train(classe~., data=train, method="rf", trControl=control, verbose=FALSE)
+print(RF)
+```
+```{r,echo = TRUE,cache = TRUE}
+plot(RF)
+```
+```{r,echo = TRUE}
+pred<- predict(RF,newdata=test)
+confusionMatrix(pred, test$classe)
+```
+The accuracy of Random Forest is about 99.7% which is a really impressive performance.
+
+### Gradient Boosting Method
+```{r,echo = TRUE,cache = TRUE}
+GB<-train(classe~., data=train, method="gbm", trControl=control, verbose=FALSE)
+print(GB)
+```
+```{r,echo = TRUE,cache = TRUE}
+plot(GB)
+```
+```{r,echo = TRUE}
+pred<- predict(GB,newdata=test)
+confusionMatrix(pred, test$classe)
+```
+The accuracy of Gradient Boosting Method is about 98.8% which is a also impressive performance.
+
+## Conclusion
+Comparing with the three models above, the Random Forest has the best performance. Its accuracy is about 99.7%. The expected out-of-sample error rate is merely 0.3%. So I will use the Random Forest to predict the results.
+```{r,echo = TRUE}
+pred<- predict(RF,newdata=testing)
+print(pred)
+```
